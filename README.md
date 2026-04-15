@@ -1,6 +1,6 @@
 ### Raft
 
-This is my own implementation of Raft. It has two main sources of implementation:
+This is my own implementation of Raft. It has two main sources of inspiration:
 
 - The MIT 6.5840 course
 - Hashicorp's Raft implementation
