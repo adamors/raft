@@ -12,6 +12,7 @@ Design decisions are inspired by the labs, however both test and application cod
 What is significantly different from the MIT 6.5840's design:
 - I've adopted Hashicorp's FSM API. Channels are not exposed at all, instead the caller implements `Apply`, `Snapshot`, and `Restore` callbacks
 - Raft nodes use real gRPC to communicate with each other
+- Membership changes are implemented per Ongaro dissertation §4.1 (single-server changes)
 - The test harness is written around [Gosim](https://github.com/jellevandenhooff/gosim), this allows for crashing/restarting/isolating of nodes
 
 
