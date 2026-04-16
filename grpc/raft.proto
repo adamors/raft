@@ -7,12 +7,21 @@ option go_package = "raft/api/raft_v1";
 message LogEntry {
   int32 term = 1;
   bytes command = 2;
+  LogEntryType type = 3;
+}
+
+enum LogEntryType {
+  COMMAND = 0;
+  NO_OP = 1;
+  CONFIGURATION = 2;
 }
 
 service Raft {
   rpc RequestVote(RequestVoteArgs) returns (RequestVoteReply);
   rpc AppendEntries(AppendEntriesArgs) returns (AppendEntriesReply);
   rpc InstallSnapshot(InstallSnapshotArgs) returns (InstallSnapshotReply);
+  rpc AddServer(AddServerArgs) returns (AddServerReply);
+  rpc RemoveServer(RemoveServerArgs) returns (RemoveServerReply);
 }
 
 message RequestVoteArgs {
@@ -56,4 +65,22 @@ message InstallSnapshotArgs {
 
 message InstallSnapshotReply {
   int32 term = 1;
+}
+
+message AddServerArgs{
+  string address = 1;
+}
+
+message AddServerReply {
+  bool status = 1;
+  string leader_address = 2;
+}
+
+message RemoveServerArgs {
+  string address = 1;
+}
+
+message RemoveServerReply {
+  bool status = 1;
+  string leader_address = 2;
 }
