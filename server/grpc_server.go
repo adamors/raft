@@ -8,9 +8,9 @@ import (
 	"net"
 	"sync"
 
-	"github.com/adamors/raft"
 	pb "github.com/adamors/raft/grpc"
 	"github.com/adamors/raft/persister"
+	"github.com/adamors/raft/raft"
 	"google.golang.org/grpc"
 )
 
@@ -42,7 +42,7 @@ func (s *snapshot) Persist(writer io.Writer) error {
 
 func (s *snapshot) Release() {}
 
-func NewGRPCServer(srv int, transport raft.Transport, persister persister.Persister, maxraftstate int) *GrpcServer {
+func NewGRPCServer(srv int, transport raft.Transport, persister persister.Persister, config *raft.Config) *GrpcServer {
 	s := &GrpcServer{
 		me:        srv,
 		logs:      map[int]any{},
@@ -50,7 +50,7 @@ func NewGRPCServer(srv int, transport raft.Transport, persister persister.Persis
 		gsrv:      grpc.NewServer(),
 	}
 
-	s.raft = raft.NewMake(transport, srv, persister, s, maxraftstate)
+	s.raft = raft.NewRaft(transport, srv, persister, s, config)
 
 	pb.RegisterRaftServer(s.gsrv, s)
 
@@ -118,6 +118,8 @@ func (s *GrpcServer) ApplyErr() string {
 }
 
 func (rs *GrpcServer) Kill() {
+	rs.raft.Shutdown().Error()
+
 	rs.mu.Lock()
 	rs.raft = nil
 	rs.mu.Unlock()
@@ -126,6 +128,7 @@ func (rs *GrpcServer) Kill() {
 func (rs *GrpcServer) GetState() (int, bool) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
+
 	return rs.raft.GetState()
 }
 

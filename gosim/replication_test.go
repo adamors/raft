@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// TestBasicAgree: 3 nodes. Submit 3 commands sequentially via `Start()`.
+// TestBasicAgree: 3 nodes. Submit 3 commands sequentially via `Apply()`.
 // For each command, poll all machines until all 3 have committed it.
 // Verifies that in a healthy cluster, commands commit to all peers.
 func TestBasicAgree(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/adamors/raft"
 	"github.com/adamors/raft/persister"
+	"github.com/adamors/raft/raft"
 	"github.com/adamors/raft/server"
 	"github.com/jellevandenhooff/gosim"
 )
@@ -76,7 +76,9 @@ func setupMachines(addrs []address) []gosim.Machine {
 			MainFunc: func() {
 				transport, _ := raft.NewGrpcTransport(ips)
 				persister := p
-				server := server.NewGRPCServer(i, transport, persister, 1000)
+				cfg := raft.DefaultConfig()
+				cfg.MaxRaftState = 1000
+				server := server.NewGRPCServer(i, transport, persister, cfg)
 				go server.ServeStatus(addr.httpAddr)
 				l, err := net.Listen("tcp", addr.grpcAddr)
 				if err != nil {

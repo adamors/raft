@@ -32,7 +32,7 @@ func TestServer(t *testing.T) {
 
 	for i := range 3 {
 		persister := persister.NewInMemoryPersister()
-		servers[i] = server.NewGRPCServer(i, transport, persister, 1000)
+		servers[i] = server.NewGRPCServer(i, transport, persister, raft.DefaultConfig())
 		go func() {
 			servers[i].Serve(listeners[i])
 		}()
@@ -79,13 +79,11 @@ func testReplication(t *testing.T, servers []*server.GrpcServer) {
 	for time.Since(t0).Seconds() < 10 {
 		index := -1
 		for _, server := range servers {
-			rf := server.Raft()
-			index1, _, ok := rf.Start(cmd)
-			if ok {
-				index = index1
+			future := server.Raft().Apply(cmd, 2*time.Second)
+			if future.Error() == nil {
+				index = future.Index()
 				break
 			}
-
 		}
 		if index != -1 {
 			t1 := time.Now()

@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 
-	"github.com/adamors/raft"
 	pb "github.com/adamors/raft/grpc"
+	"github.com/adamors/raft/raft"
 )
 
 func (s *GrpcServer) RequestVote(ctx context.Context, req *pb.RequestVoteArgs) (*pb.RequestVoteReply, error) {

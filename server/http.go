@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (s *GrpcServer) ServeStatus(addr string) {
@@ -18,12 +19,12 @@ func (s *GrpcServer) ServeStatus(addr string) {
 
 	mux.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
 		cmd, _ := io.ReadAll(r.Body)
-		index, _, ok := s.Raft().Start(cmd)
-		if !ok {
+		future := s.Raft().Apply(cmd, 5*time.Second)
+		if err := future.Error(); err != nil {
 			http.Error(w, "not leader", http.StatusServiceUnavailable)
 			return
 		}
-		fmt.Fprintf(w, "%d", index)
+		fmt.Fprintf(w, "%d", future.Index())
 	})
 
 	mux.HandleFunc("/logs/", func(w http.ResponseWriter, r *http.Request) {
