@@ -8,7 +8,7 @@ import (
 
 type InstallSnapshotArgs struct {
 	Term              int
-	LeaderId          int
+	LeaderId          string
 	LastIncludedIndex int
 	LastIncludedTerm  int
 	Data              []byte
@@ -19,8 +19,8 @@ type InstallSnapshotReply struct {
 	Term int
 }
 
-func (rf *Raft) sendInstallSnapshot(server int, args *InstallSnapshotArgs, reply *InstallSnapshotReply) bool {
-	return rf.transport.Call(server, "Raft.InstallSnapshot", args, reply)
+func (rf *Raft) sendInstallSnapshot(peer string, args *InstallSnapshotArgs, reply *InstallSnapshotReply) bool {
+	return rf.transport.Call(peer, "Raft.InstallSnapshot", args, reply)
 }
 
 func (rf *Raft) Snapshot(index int) {
@@ -94,9 +94,9 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 	rf.mu.Unlock()
 }
 
-func (rf *Raft) sendInstallSnapshotToFollower(server int, args *InstallSnapshotArgs) {
+func (rf *Raft) sendInstallSnapshotToFollower(peer string, args *InstallSnapshotArgs) {
 	reply := &InstallSnapshotReply{}
-	if ok := rf.sendInstallSnapshot(server, args, reply); !ok {
+	if ok := rf.sendInstallSnapshot(peer, args, reply); !ok {
 		return
 	}
 
@@ -112,6 +112,6 @@ func (rf *Raft) sendInstallSnapshotToFollower(server int, args *InstallSnapshotA
 		return
 	}
 
-	rf.nextIndex[server] = args.LastIncludedIndex + 1
-	rf.matchIndex[server] = args.LastIncludedIndex
+	rf.nextIndex[peer] = args.LastIncludedIndex + 1
+	rf.matchIndex[peer] = args.LastIncludedIndex
 }

@@ -10,10 +10,9 @@ import (
 )
 
 type Transport interface {
-	Call(server int, method string, args, reply any) bool
+	Call(id string, method string, args, reply any) bool
+	Peers() []string
 	NumPeers() int
-	Address(nodeId int) string
-	AddAddress(addr string)
 	ReplacePeers(addrs []string)
 	Dial(addr string) bool
 }
@@ -33,8 +32,8 @@ func (t *GrpcTransport) NumPeers() int {
 	return len(t.addrs)
 }
 
-func (t *GrpcTransport) AddAddress(addr string) {
-	t.addrs = append(t.addrs, addr)
+func (t *GrpcTransport) Peers() []string {
+	return t.addrs
 }
 
 func (t *GrpcTransport) ReplacePeers(addrs []string) {
@@ -54,11 +53,12 @@ func (t *GrpcTransport) Dial(addr string) bool {
 	return true
 }
 
-func (t *GrpcTransport) Call(server int, method string, args, reply any) bool {
+// Call dials id directly as the address since ID == address in this implementation.
+func (t *GrpcTransport) Call(id string, method string, args, reply any) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, t.addrs[server], //nolint:staticcheck
+	conn, err := grpc.DialContext(ctx, id, //nolint:staticcheck
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock())
 	if err != nil {
@@ -73,7 +73,7 @@ func (t *GrpcTransport) Call(server int, method string, args, reply any) bool {
 		a := args.(*RequestVoteArgs)
 		pbArgs := &pb.RequestVoteArgs{
 			Term:         int32(a.Term),
-			CandidateId:  int32(a.CandidateId),
+			CandidateId:  a.CandidateId,
 			LastLogIndex: int32(a.LastLogIndex),
 			LastLogTerm:  int32(a.LastLogTerm),
 		}
@@ -89,11 +89,11 @@ func (t *GrpcTransport) Call(server int, method string, args, reply any) bool {
 		a := args.(*AppendEntriesArgs)
 		pbEntries := make([]*pb.LogEntry, len(a.Entries))
 		for i, e := range a.Entries {
-			pbEntries[i] = &pb.LogEntry{Term: int32(e.Term), Command: e.Command}
+			pbEntries[i] = &pb.LogEntry{Term: int32(e.Term), Command: e.Command, Type: pb.LogEntryType(e.Type)}
 		}
 		pbArgs := &pb.AppendEntriesArgs{
 			Term:         int32(a.Term),
-			LeaderId:     int32(a.LeaderId),
+			LeaderId:     a.LeaderId,
 			PrevLogIndex: int32(a.PrevLogIndex),
 			PrevLogTerm:  int32(a.PrevLogTerm),
 			Entries:      pbEntries,
@@ -114,7 +114,7 @@ func (t *GrpcTransport) Call(server int, method string, args, reply any) bool {
 		a := args.(*InstallSnapshotArgs)
 		pbArgs := &pb.InstallSnapshotArgs{
 			Term:              int32(a.Term),
-			LeaderId:          int32(a.LeaderId),
+			LeaderId:          a.LeaderId,
 			LastIncludedIndex: int32(a.LastIncludedIndex),
 			LastIncludedTerm:  int32(a.LastIncludedTerm),
 			Data:              a.Data,
@@ -132,11 +132,4 @@ func (t *GrpcTransport) Call(server int, method string, args, reply any) bool {
 	}
 
 	return true
-}
-
-func (t *GrpcTransport) Address(nodeId int) string {
-	if nodeId < 0 || nodeId >= len(t.addrs) {
-		return ""
-	}
-	return t.addrs[nodeId]
 }

@@ -8,7 +8,7 @@ import (
 
 type persistedState struct {
 	CurrentTerm       int
-	VotedFor          int
+	VotedFor          string
 	Log               []LogEntry
 	LastIncludedIndex int
 	LastIncludedTerm  int

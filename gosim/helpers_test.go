@@ -78,7 +78,7 @@ func setupMachines(addrs []address) []gosim.Machine {
 				persister := p
 				cfg := raft.DefaultConfig()
 				cfg.MaxRaftState = 1000
-				server := server.NewGRPCServer(i, transport, persister, cfg)
+				server := server.NewGRPCServer(addr.grpcAddr, transport, persister, cfg)
 				go server.ServeStatus(addr.httpAddr)
 				l, err := net.Listen("tcp", addr.grpcAddr)
 				if err != nil {

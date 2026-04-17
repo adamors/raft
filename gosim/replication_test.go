@@ -197,10 +197,10 @@ func TestBackup(t *testing.T) {
 		t.Fatalf("Leader election failed for majority cluster %v", err)
 	}
 
-	minorityLeaderAddr, err := waitForLeaderAddr(minority)
-	if err != nil {
-		t.Fatalf("Leader election failed for minority cluster %v", err)
-	}
+	// The minority partition (2 out of 5 nodes) cannot elect a leader since they
+	// can't achieve majority quorum. Fire commands at the old leader's address
+	// directly — they won't commit, but will build up conflicting log entries.
+	oldLeaderAddr := minority.addrs[0]
 
 	for i := range 10 {
 		cmd := []byte(strconv.Itoa((i + 1) * 100))
@@ -208,9 +208,8 @@ func TestBackup(t *testing.T) {
 			t.Fatalf("submit failed for majority cluster %v", err)
 		}
 
-		// fire into the minority to build up conflicting uncommitted entries
 		cmd = []byte(strconv.Itoa((i + 1) * 200))
-		submitCommand(minorityLeaderAddr, cmd)
+		submitCommand(oldLeaderAddr, cmd)
 	}
 
 	healCluster(majority, minority)

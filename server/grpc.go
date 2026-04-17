@@ -11,7 +11,7 @@ func (s *GrpcServer) RequestVote(ctx context.Context, req *pb.RequestVoteArgs) (
 	reply := &raft.RequestVoteReply{}
 	args := &raft.RequestVoteArgs{
 		Term:         int(req.Term),
-		CandidateId:  int(req.CandidateId),
+		CandidateId:  req.CandidateId,
 		LastLogIndex: int(req.LastLogIndex),
 		LastLogTerm:  int(req.LastLogTerm),
 	}
@@ -28,12 +28,12 @@ func (s *GrpcServer) AppendEntries(ctx context.Context, req *pb.AppendEntriesArg
 	reply := &raft.AppendEntriesReply{}
 	entries := make([]raft.LogEntry, len(req.Entries))
 	for i, e := range req.Entries {
-		entries[i] = raft.LogEntry{Term: int(e.Term), Command: e.Command}
+		entries[i] = raft.LogEntry{Term: int(e.Term), Command: e.Command, Type: raft.LogEntryType(e.Type)}
 	}
 
 	args := &raft.AppendEntriesArgs{
 		Term:         int(req.Term),
-		LeaderId:     int(req.LeaderId),
+		LeaderId:     req.LeaderId,
 		PrevLogIndex: int(req.PrevLogIndex),
 		PrevLogTerm:  int(req.PrevLogTerm),
 		Entries:      entries,
@@ -55,7 +55,7 @@ func (s *GrpcServer) InstallSnapshot(ctx context.Context, req *pb.InstallSnapsho
 	reply := &raft.InstallSnapshotReply{}
 	args := &raft.InstallSnapshotArgs{
 		Term:              int(req.Term),
-		LeaderId:          int(req.LeaderId),
+		LeaderId:          req.LeaderId,
 		LastIncludedIndex: int(req.LastIncludedIndex),
 		LastIncludedTerm:  int(req.LastIncludedTerm),
 		Data:              req.Data,

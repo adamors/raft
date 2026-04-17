@@ -37,5 +37,15 @@ func (s *GrpcServer) ServeStatus(addr string) {
 		w.Write(val.([]byte))
 	})
 
+	mux.HandleFunc("/add-server/", func(w http.ResponseWriter, r *http.Request) {
+		addr := strings.TrimPrefix(r.URL.Path, "/add-server/")
+		future := s.Raft().AddServer(addr, 2*time.Second)
+		if err := future.Error(); err != nil {
+			http.Error(w, "error adding server", http.StatusServiceUnavailable)
+			return
+		}
+		fmt.Fprint(w, "ok")
+	})
+
 	http.ListenAndServe(addr, mux)
 }

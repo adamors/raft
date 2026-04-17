@@ -17,7 +17,7 @@ import (
 type GrpcServer struct {
 	pb.UnimplementedRaftServer
 
-	me          int
+	me          string
 	applyErr    string // from apply channel readers
 	lastApplied int
 	persister   persister.Persister
@@ -42,15 +42,15 @@ func (s *snapshot) Persist(writer io.Writer) error {
 
 func (s *snapshot) Release() {}
 
-func NewGRPCServer(srv int, transport raft.Transport, persister persister.Persister, config *raft.Config) *GrpcServer {
+func NewGRPCServer(me string, transport raft.Transport, persister persister.Persister, config *raft.Config) *GrpcServer {
 	s := &GrpcServer{
-		me:        srv,
+		me:        me,
 		logs:      map[int]any{},
 		persister: persister,
 		gsrv:      grpc.NewServer(),
 	}
 
-	s.raft = raft.NewRaft(transport, srv, persister, s, config)
+	s.raft = raft.NewRaft(transport, me, persister, s, config)
 
 	pb.RegisterRaftServer(s.gsrv, s)
 

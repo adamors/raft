@@ -51,7 +51,7 @@ func (rf *Raft) makeConfigChange(address string, changeType uint8) (int, int, er
 		}
 		entry = rf.addServerLogEntry(address)
 	case removeServerChange:
-		if address == rf.transport.Address(rf.me) {
+		if address == rf.me {
 			return -1, -1, ErrCannotRemoveLeader
 		}
 		entry, err = rf.removeServerLogEntry(address)
@@ -80,11 +80,7 @@ func encodeAddrs(addrs []string) []byte {
 func (rf *Raft) addServerLogEntry(address string) LogEntry {
 	rf.configChangePending = true
 
-	addrs := make([]string, rf.transport.NumPeers())
-	for i := range rf.transport.NumPeers() {
-		addrs[i] = rf.transport.Address(i)
-	}
-	addrs = append(addrs, address)
+	addrs := append(rf.transport.Peers(), address)
 
 	return LogEntry{
 		Term:    rf.currentTerm,
@@ -96,12 +92,12 @@ func (rf *Raft) addServerLogEntry(address string) LogEntry {
 func (rf *Raft) removeServerLogEntry(address string) (LogEntry, error) {
 	found := false
 	addrs := make([]string, 0, rf.transport.NumPeers()-1)
-	for i := range rf.transport.NumPeers() {
-		if address == rf.transport.Address(i) {
+	for _, peer := range rf.transport.Peers() {
+		if address == peer {
 			found = true
 			continue
 		}
-		addrs = append(addrs, rf.transport.Address(i))
+		addrs = append(addrs, peer)
 	}
 
 	if !found {

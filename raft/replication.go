@@ -9,7 +9,7 @@ import (
 
 type AppendEntriesArgs struct {
 	Term         int
-	LeaderId     int
+	LeaderId     string
 	PrevLogIndex int
 	PrevLogTerm  int
 	Entries      []LogEntry
@@ -25,8 +25,8 @@ type AppendEntriesReply struct {
 	XLen   int // length of followers log
 }
 
-func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
-	return rf.transport.Call(server, "Raft.AppendEntries", args, reply)
+func (rf *Raft) sendAppendEntries(peer string, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
+	return rf.transport.Call(peer, "Raft.AppendEntries", args, reply)
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
@@ -122,7 +122,7 @@ func (rf *Raft) updateCommitIndex() {
 		}
 
 		count := 1 // Count self
-		for peer := range rf.transport.NumPeers() {
+		for _, peer := range rf.transport.Peers() {
 			if peer != rf.me && rf.matchIndex[peer] >= n {
 				count++
 			}
@@ -135,16 +135,16 @@ func (rf *Raft) updateCommitIndex() {
 	}
 }
 
-func (rf *Raft) sendEntriesForFollower(server int, args *AppendEntriesArgs) {
+func (rf *Raft) sendEntriesForFollower(peer string, args *AppendEntriesArgs) {
 	reply := &AppendEntriesReply{}
 
-	if ok := rf.sendAppendEntries(server, args, reply); !ok {
+	if ok := rf.sendAppendEntries(peer, args, reply); !ok {
 		return
 	}
 
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	rf.lastAckTime[server] = time.Now()
+	rf.lastAckTime[peer] = time.Now()
 
 	if rf.currentTerm != args.Term || !rf.isLeader {
 		return
@@ -156,15 +156,15 @@ func (rf *Raft) sendEntriesForFollower(server int, args *AppendEntriesArgs) {
 	}
 
 	if reply.Success {
-		rf.nextIndex[server] = args.PrevLogIndex + len(args.Entries) + 1
-		rf.matchIndex[server] = args.PrevLogIndex + len(args.Entries)
+		rf.nextIndex[peer] = args.PrevLogIndex + len(args.Entries) + 1
+		rf.matchIndex[peer] = args.PrevLogIndex + len(args.Entries)
 		rf.updateCommitIndex()
 	} else { // follower is behind
 		if reply.XTerm == -1 {
-			rf.nextIndex[server] = reply.XLen
+			rf.nextIndex[peer] = reply.XLen
 		} else {
-			rf.nextIndex[server] = reply.XIndex
-			rf.nextIndex[server] = max(rf.lastIncludedIndex+1, rf.nextIndex[server])
+			rf.nextIndex[peer] = reply.XIndex
+			rf.nextIndex[peer] = max(rf.lastIncludedIndex+1, rf.nextIndex[peer])
 		}
 	}
 }
@@ -174,12 +174,12 @@ func (rf *Raft) heartbeat() {
 	term := rf.currentTerm
 	commitIndex := rf.commitIndex
 
-	for i := range rf.transport.NumPeers() {
-		if i == rf.me {
+	for _, peer := range rf.transport.Peers() {
+		if peer == rf.me {
 			continue
 		}
 
-		prevLogIndex := rf.nextIndex[i] - 1
+		prevLogIndex := rf.nextIndex[peer] - 1
 
 		if prevLogIndex < rf.lastIncludedIndex {
 			args := &InstallSnapshotArgs{
@@ -190,7 +190,7 @@ func (rf *Raft) heartbeat() {
 				Data:              rf.snapshot,
 				Done:              true,
 			}
-			go rf.sendInstallSnapshotToFollower(i, args)
+			go rf.sendInstallSnapshotToFollower(peer, args)
 		} else {
 			prevLogTerm := rf.log[rf.logIndex(prevLogIndex)].Term
 			entries := make([]LogEntry, len(rf.log[rf.logIndex(prevLogIndex+1):]))
@@ -204,7 +204,7 @@ func (rf *Raft) heartbeat() {
 				Entries:      entries,
 				LeaderCommit: commitIndex,
 			}
-			go rf.sendEntriesForFollower(i, args)
+			go rf.sendEntriesForFollower(peer, args)
 		}
 	}
 }
@@ -221,11 +221,11 @@ func (rf *Raft) applyConfig(entry LogEntry) error {
 
 	rf.mu.Lock()
 	rf.configChangePending = false
-	n := rf.transport.NumPeers()
-	for i := len(rf.nextIndex); i < n; i++ {
-		rf.nextIndex = append(rf.nextIndex, rf.lastLogIndex()+1)
-		rf.matchIndex = append(rf.matchIndex, 0)
-		rf.lastAckTime = append(rf.lastAckTime, time.Time{})
+	for _, peer := range addrs {
+		if _, ok := rf.nextIndex[peer]; !ok {
+			rf.nextIndex[peer] = rf.lastLogIndex() + 1
+			rf.matchIndex[peer] = 0
+		}
 	}
 	rf.mu.Unlock()
 
@@ -295,8 +295,8 @@ func (rf *Raft) heartbeatTicker() {
 			// Check whether enough followers are still online to make quorum.
 			// If we haven't heard back from too many followers, step down.
 			acks := 1 // count self
-			for i := range rf.transport.NumPeers() {
-				if i != rf.me && time.Since(rf.lastAckTime[i]) < rf.electionTimeout {
+			for _, peer := range rf.transport.Peers() {
+				if peer != rf.me && time.Since(rf.lastAckTime[peer]) < rf.electionTimeout {
 					acks++
 				}
 			}

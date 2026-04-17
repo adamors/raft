@@ -4,7 +4,7 @@ import "time"
 
 type RequestVoteArgs struct {
 	Term         int
-	CandidateId  int
+	CandidateId  string
 	LastLogIndex int
 	LastLogTerm  int
 }
@@ -14,8 +14,8 @@ type RequestVoteReply struct {
 	VoteGranted bool
 }
 
-func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
-	return rf.transport.Call(server, "Raft.RequestVote", args, reply)
+func (rf *Raft) sendRequestVote(peer string, args *RequestVoteArgs, reply *RequestVoteReply) bool {
+	return rf.transport.Call(peer, "Raft.RequestVote", args, reply)
 }
 
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
@@ -33,7 +33,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		return
 	}
 
-	if rf.votedFor != -1 && rf.votedFor != args.CandidateId {
+	if rf.votedFor != "" && rf.votedFor != args.CandidateId {
 		reply.VoteGranted = false
 		return
 	}
@@ -75,15 +75,15 @@ func (rf *Raft) startElection() {
 	rf.mu.Unlock()
 
 	votes := 1
-	for i := range rf.transport.NumPeers() {
-		if i == rf.me {
+	for _, peer := range rf.transport.Peers() {
+		if peer == rf.me {
 			continue
 		}
 
 		// concurrently send out votes for every peer
-		go func(server int) {
+		go func(peer string) {
 			reply := &RequestVoteReply{}
-			if ok := rf.sendRequestVote(server, args, reply); !ok {
+			if ok := rf.sendRequestVote(peer, args, reply); !ok {
 				return
 			}
 
@@ -99,15 +99,15 @@ func (rf *Raft) startElection() {
 				if votes > rf.transport.NumPeers()/2 && !rf.isLeader {
 					rf.isLeader = true
 					now := time.Now()
-					for i := range rf.transport.NumPeers() {
-						rf.lastAckTime[i] = now
-						rf.nextIndex[i] = rf.lastLogIndex() + 1
-						rf.matchIndex[i] = 0
+					for _, p := range rf.transport.Peers() {
+						rf.lastAckTime[p] = now
+						rf.nextIndex[p] = rf.lastLogIndex() + 1
+						rf.matchIndex[p] = 0
 					}
 					rf.heartbeat()
 				}
 			}
-		}(i)
+		}(peer)
 	}
 }
 

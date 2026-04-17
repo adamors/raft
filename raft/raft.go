@@ -3,6 +3,7 @@ package raft
 import (
 	"bytes"
 	"errors"
+	"hash/fnv"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -37,7 +38,7 @@ type Raft struct {
 	mu        sync.Mutex
 	transport Transport
 	persister persister.Persister
-	me        int
+	me        string
 	dead      int32
 	shutDown  bool
 
@@ -58,13 +59,13 @@ type Raft struct {
 
 	maxraftstate      int // snapshot if log grows this big
 	heartbeatInterval time.Duration
-	leaderId          int // id of leader from peers
+	leaderId          string // address of leader, empty if unknown
 
 	configChangePending bool
 
 	// Persistent
 	currentTerm int
-	votedFor    int
+	votedFor    string
 	log         []LogEntry
 
 	// Snapshot
@@ -72,12 +73,12 @@ type Raft struct {
 	lastIncludedTerm  int
 	lastIncludedIndex int
 
-	lastAckTime []time.Time
+	lastAckTime map[string]time.Time
 	commitIndex int
 	lastApplied int
 
-	nextIndex  []int
-	matchIndex []int
+	nextIndex  map[string]int
+	matchIndex map[string]int
 }
 
 // GetState returns the current term and whether this node is leader or not
@@ -93,20 +94,16 @@ func (rf *Raft) Done() <-chan struct{} {
 	return rf.doneCh
 }
 
-// Leader tries to return the address of the leader. If this not is the leader
-// it will return its own address, otherwise it will try to look up the leader's
-// address if the leader's id is known. Empty string otherwise.
+// Leader tries to return the address of the leader. Returns own address if
+// this node is the leader, the known leader's address if available, empty string otherwise.
 func (rf *Raft) Leader() string {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
 	if rf.isLeader {
-		return rf.transport.Address(rf.me)
+		return rf.me
 	}
-	if rf.leaderId < 0 {
-		return ""
-	}
-	return rf.transport.Address(rf.leaderId)
+	return rf.leaderId
 }
 
 // WaitForLeader blocks until it can return the address of the leader node or
@@ -179,9 +176,9 @@ func (rf *Raft) GetConfiguration() *ConfigurationFuture {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	servers := make([]Server, rf.transport.NumPeers())
-	for i := range rf.transport.NumPeers() {
-		addr := rf.transport.Address(i)
+	peers := rf.transport.Peers()
+	servers := make([]Server, len(peers))
+	for i, addr := range peers {
 		servers[i] = Server{Address: addr}
 	}
 
@@ -229,16 +226,22 @@ func (rf *Raft) killed() bool {
 	return atomic.LoadInt32(&rf.dead) == 1
 }
 
+func rngSeed(id string) int64 {
+	h := fnv.New64a()
+	h.Write([]byte(id))
+	return int64(h.Sum64())
+}
+
 func (rf *Raft) stepDownAsLeader(newTerm int) {
 	// caller holds lock
 	rf.currentTerm = newTerm
-	rf.votedFor = -1
+	rf.votedFor = ""
 	rf.isLeader = false
 	rf.persist()
 }
 
 // NewRaft returns a new Raft instance
-func NewRaft(transport Transport, me int, p persister.Persister, fsm FSM, config *Config) *Raft {
+func NewRaft(transport Transport, me string, p persister.Persister, fsm FSM, config *Config) *Raft {
 	if config == nil {
 		config = DefaultConfig()
 	}
@@ -248,14 +251,12 @@ func NewRaft(transport Transport, me int, p persister.Persister, fsm FSM, config
 		me:                me,
 		electionTimeout:   config.ElectionTimeout,
 		heartbeatInterval: config.HeartbeatInterval,
-		votedFor:          -1,
-		leaderId:          -1,
 		maxraftstate:      config.MaxRaftState,
-		rng:               rand.New(rand.NewSource(int64(me + 1))),
+		rng:               rand.New(rand.NewSource(rngSeed(me))),
 		log:               []LogEntry{{Term: 0}},
-		nextIndex:         make([]int, transport.NumPeers()),
-		matchIndex:        make([]int, transport.NumPeers()),
-		lastAckTime:       make([]time.Time, transport.NumPeers()),
+		nextIndex:         make(map[string]int),
+		matchIndex:        make(map[string]int),
+		lastAckTime:       make(map[string]time.Time),
 		fsm:               fsm,
 		doneCh:            make(chan struct{}),
 		futures:           make(map[int]*ApplyMsgFuture),
