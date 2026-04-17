@@ -22,8 +22,6 @@ const (
 	Raft_RequestVote_FullMethodName     = "/raft.v1.Raft/RequestVote"
 	Raft_AppendEntries_FullMethodName   = "/raft.v1.Raft/AppendEntries"
 	Raft_InstallSnapshot_FullMethodName = "/raft.v1.Raft/InstallSnapshot"
-	Raft_AddServer_FullMethodName       = "/raft.v1.Raft/AddServer"
-	Raft_RemoveServer_FullMethodName    = "/raft.v1.Raft/RemoveServer"
 )
 
 // RaftClient is the client API for Raft service.
@@ -33,8 +31,6 @@ type RaftClient interface {
 	RequestVote(ctx context.Context, in *RequestVoteArgs, opts ...grpc.CallOption) (*RequestVoteReply, error)
 	AppendEntries(ctx context.Context, in *AppendEntriesArgs, opts ...grpc.CallOption) (*AppendEntriesReply, error)
 	InstallSnapshot(ctx context.Context, in *InstallSnapshotArgs, opts ...grpc.CallOption) (*InstallSnapshotReply, error)
-	AddServer(ctx context.Context, in *AddServerArgs, opts ...grpc.CallOption) (*AddServerReply, error)
-	RemoveServer(ctx context.Context, in *RemoveServerArgs, opts ...grpc.CallOption) (*RemoveServerReply, error)
 }
 
 type raftClient struct {
@@ -72,24 +68,6 @@ func (c *raftClient) InstallSnapshot(ctx context.Context, in *InstallSnapshotArg
 	return out, nil
 }
 
-func (c *raftClient) AddServer(ctx context.Context, in *AddServerArgs, opts ...grpc.CallOption) (*AddServerReply, error) {
-	out := new(AddServerReply)
-	err := c.cc.Invoke(ctx, Raft_AddServer_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *raftClient) RemoveServer(ctx context.Context, in *RemoveServerArgs, opts ...grpc.CallOption) (*RemoveServerReply, error) {
-	out := new(RemoveServerReply)
-	err := c.cc.Invoke(ctx, Raft_RemoveServer_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // RaftServer is the server API for Raft service.
 // All implementations must embed UnimplementedRaftServer
 // for forward compatibility
@@ -97,8 +75,6 @@ type RaftServer interface {
 	RequestVote(context.Context, *RequestVoteArgs) (*RequestVoteReply, error)
 	AppendEntries(context.Context, *AppendEntriesArgs) (*AppendEntriesReply, error)
 	InstallSnapshot(context.Context, *InstallSnapshotArgs) (*InstallSnapshotReply, error)
-	AddServer(context.Context, *AddServerArgs) (*AddServerReply, error)
-	RemoveServer(context.Context, *RemoveServerArgs) (*RemoveServerReply, error)
 	mustEmbedUnimplementedRaftServer()
 }
 
@@ -114,12 +90,6 @@ func (UnimplementedRaftServer) AppendEntries(context.Context, *AppendEntriesArgs
 }
 func (UnimplementedRaftServer) InstallSnapshot(context.Context, *InstallSnapshotArgs) (*InstallSnapshotReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InstallSnapshot not implemented")
-}
-func (UnimplementedRaftServer) AddServer(context.Context, *AddServerArgs) (*AddServerReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AddServer not implemented")
-}
-func (UnimplementedRaftServer) RemoveServer(context.Context, *RemoveServerArgs) (*RemoveServerReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RemoveServer not implemented")
 }
 func (UnimplementedRaftServer) mustEmbedUnimplementedRaftServer() {}
 
@@ -188,42 +158,6 @@ func _Raft_InstallSnapshot_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Raft_AddServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AddServerArgs)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RaftServer).AddServer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Raft_AddServer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RaftServer).AddServer(ctx, req.(*AddServerArgs))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Raft_RemoveServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemoveServerArgs)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RaftServer).RemoveServer(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Raft_RemoveServer_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RaftServer).RemoveServer(ctx, req.(*RemoveServerArgs))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // Raft_ServiceDesc is the grpc.ServiceDesc for Raft service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -242,14 +176,6 @@ var Raft_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InstallSnapshot",
 			Handler:    _Raft_InstallSnapshot_Handler,
-		},
-		{
-			MethodName: "AddServer",
-			Handler:    _Raft_AddServer_Handler,
-		},
-		{
-			MethodName: "RemoveServer",
-			Handler:    _Raft_RemoveServer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

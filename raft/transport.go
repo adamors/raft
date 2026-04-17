@@ -13,6 +13,9 @@ type Transport interface {
 	Call(server int, method string, args, reply any) bool
 	NumPeers() int
 	Address(nodeId int) string
+	AddAddress(addr string)
+	ReplacePeers(addrs []string)
+	Dial(addr string) bool
 }
 
 // GrpcTransport dials a fresh connection per RPC call so there is no
@@ -28,6 +31,27 @@ func NewGrpcTransport(addrs []string) (*GrpcTransport, error) {
 
 func (t *GrpcTransport) NumPeers() int {
 	return len(t.addrs)
+}
+
+func (t *GrpcTransport) AddAddress(addr string) {
+	t.addrs = append(t.addrs, addr)
+}
+
+func (t *GrpcTransport) ReplacePeers(addrs []string) {
+	t.addrs = addrs
+}
+
+func (t *GrpcTransport) Dial(addr string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+
+	return true
 }
 
 func (t *GrpcTransport) Call(server int, method string, args, reply any) bool {

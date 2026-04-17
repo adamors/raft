@@ -1,6 +1,11 @@
 package raft
 
-import "time"
+import (
+	"bytes"
+	"encoding/gob"
+	"log"
+	"time"
+)
 
 type AppendEntriesArgs struct {
 	Term         int
@@ -204,6 +209,29 @@ func (rf *Raft) heartbeat() {
 	}
 }
 
+func (rf *Raft) applyConfig(entry LogEntry) error {
+	var addrs []string
+	buf := bytes.NewBuffer(entry.Command)
+	if err := gob.NewDecoder(buf).Decode(&addrs); err != nil {
+		log.Printf("failed to decode config entry %v", err)
+		return ErrInternalError
+	}
+
+	rf.transport.ReplacePeers(addrs)
+
+	rf.mu.Lock()
+	rf.configChangePending = false
+	n := rf.transport.NumPeers()
+	for i := len(rf.nextIndex); i < n; i++ {
+		rf.nextIndex = append(rf.nextIndex, rf.lastLogIndex()+1)
+		rf.matchIndex = append(rf.matchIndex, 0)
+		rf.lastAckTime = append(rf.lastAckTime, time.Time{})
+	}
+	rf.mu.Unlock()
+
+	return nil
+}
+
 func (rf *Raft) applyTicker() {
 	defer rf.wg.Done()
 
@@ -212,22 +240,35 @@ func (rf *Raft) applyTicker() {
 		for rf.lastApplied < rf.commitIndex {
 			rf.lastApplied++
 			currentTerm := rf.currentTerm
-			entryCurrentTerm := rf.log[rf.logIndex(rf.lastApplied)].Term
+			lastEntry := rf.log[rf.logIndex(rf.lastApplied)]
+			entryCurrentTerm := lastEntry.Term
 
 			index := rf.lastApplied
 			applyLog := &Log{
-				Data:  rf.log[rf.logIndex(rf.lastApplied)].Command,
+				Data:  lastEntry.Command,
 				Index: rf.lastApplied,
 				Term:  entryCurrentTerm,
 			}
 			rf.mu.Unlock()
-			result := rf.fsm.Apply(applyLog)
+			var result any
+			var err error
+			switch lastEntry.Type {
+			case CommandType:
+				result = rf.fsm.Apply(applyLog)
+			case NoOpType:
+				result = struct{}{}
+			case ConfigurationType:
+				err = rf.applyConfig(lastEntry)
+			}
 
 			rf.futuresMu.Lock()
 			if future, ok := rf.futures[index]; ok {
 				if future.term != currentTerm {
 					future.err = ErrLeadershipChanged
 				} else {
+					if err != nil {
+						future.err = err
+					}
 					future.response = result
 				}
 				close(future.done)

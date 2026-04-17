@@ -12,10 +12,14 @@ import (
 )
 
 var (
-	ErrTimeout           error
-	ErrRaftKilled        error
-	ErrNotLeader         error
-	ErrLeadershipChanged error
+	ErrTimeout             error
+	ErrRaftKilled          error
+	ErrNotLeader           error
+	ErrLeadershipChanged   error
+	ErrConfigChangePending error
+	ErrAddrInvalid         error
+	ErrInternalError       error
+	ErrCannotRemoveLeader  error
 )
 
 func init() {
@@ -23,6 +27,10 @@ func init() {
 	ErrRaftKilled = errors.New("raft killed")
 	ErrNotLeader = errors.New("node is no longer leader")
 	ErrLeadershipChanged = errors.New("leader changed")
+	ErrConfigChangePending = errors.New("configuration change in progress, try again")
+	ErrAddrInvalid = errors.New("could not dial provider server address or address is not known")
+	ErrInternalError = errors.New("internal error occured, check logs")
+	ErrCannotRemoveLeader = errors.New("cannot remove the leader, transfer leadership first")
 }
 
 type Raft struct {
@@ -51,6 +59,8 @@ type Raft struct {
 	maxraftstate      int // snapshot if log grows this big
 	heartbeatInterval time.Duration
 	leaderId          int // id of leader from peers
+
+	configChangePending bool
 
 	// Persistent
 	currentTerm int
@@ -137,18 +147,45 @@ func (rf *Raft) Apply(cmd []byte, timeout time.Duration) ApplyFuture {
 
 	rf.mu.Unlock()
 
-	future := &ApplyMsgFuture{
-		done:     make(chan struct{}),
-		raftDone: rf.doneCh,
-		timeout:  timeout,
-		index:    index,
-		term:     term,
+	return rf.respondWithFuture(index, term, timeout)
+}
+
+// AddServer allows ammending Raft's list of nodes. At once, only one server can be
+// added, and each server addition goes through the Raft concensus. There's no
+// voting/non-voting distinction at this time.
+func (rf *Raft) AddServer(address string, timeout time.Duration) Future {
+	index, term, err := rf.makeConfigChange(address, addServerChange)
+	if err != nil {
+		return &ErrorFuture{err}
 	}
 
-	rf.futuresMu.Lock()
-	rf.futures[index] = future
-	rf.futuresMu.Unlock()
-	return future
+	return rf.respondWithFuture(index, term, timeout)
+}
+
+// RemoveServer removes a node from the list of nodes managed by Raft. At once, only
+// one server can be removed and each server removal goes through the Raft consensus.
+// Attempting to remove the current leader will result in an error for now.
+func (rf *Raft) RemoveServer(address string, timeout time.Duration) ApplyFuture {
+	index, term, err := rf.makeConfigChange(address, removeServerChange)
+	if err != nil {
+		return &ErrorFuture{err}
+	}
+
+	return rf.respondWithFuture(index, term, timeout)
+}
+
+// GetConfiguration returns the nodes that Raft currently knows about
+func (rf *Raft) GetConfiguration() *ConfigurationFuture {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	servers := make([]Server, rf.transport.NumPeers())
+	for i := range rf.transport.NumPeers() {
+		addr := rf.transport.Address(i)
+		servers[i] = Server{ID: addr, Address: addr}
+	}
+
+	return &ConfigurationFuture{configuration: Configuration{Servers: servers}}
 }
 
 // Shutdown will shut down raft, returning a future. Calling Error() on the future
@@ -166,6 +203,21 @@ func (rf *Raft) Shutdown() Future {
 	}
 
 	return shutdownFuture{nil}
+}
+
+func (rf *Raft) respondWithFuture(index, term int, timeout time.Duration) ApplyFuture {
+	future := &ApplyMsgFuture{
+		done:     make(chan struct{}),
+		raftDone: rf.doneCh,
+		timeout:  timeout,
+		index:    index,
+		term:     term,
+	}
+
+	rf.futuresMu.Lock()
+	rf.futures[index] = future
+	rf.futuresMu.Unlock()
+	return future
 }
 
 func (rf *Raft) waitAndDone() {
