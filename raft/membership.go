@@ -11,7 +11,6 @@ const (
 )
 
 type Server struct {
-	ID      string
 	Address string
 }
 
@@ -72,6 +71,12 @@ func (rf *Raft) makeConfigChange(address string, changeType uint8) (int, int, er
 	return index, term, nil
 }
 
+func encodeAddrs(addrs []string) []byte {
+	var buf bytes.Buffer
+	gob.NewEncoder(&buf).Encode(addrs)
+	return buf.Bytes()
+}
+
 func (rf *Raft) addServerLogEntry(address string) LogEntry {
 	rf.configChangePending = true
 
@@ -81,12 +86,9 @@ func (rf *Raft) addServerLogEntry(address string) LogEntry {
 	}
 	addrs = append(addrs, address)
 
-	var buf bytes.Buffer
-	gob.NewEncoder(&buf).Encode(addrs)
-
 	return LogEntry{
 		Term:    rf.currentTerm,
-		Command: buf.Bytes(),
+		Command: encodeAddrs(addrs),
 		Type:    ConfigurationType,
 	}
 }
@@ -108,12 +110,9 @@ func (rf *Raft) removeServerLogEntry(address string) (LogEntry, error) {
 
 	rf.configChangePending = true
 
-	var buf bytes.Buffer
-	gob.NewEncoder(&buf).Encode(addrs)
-
 	return LogEntry{
 		Term:    rf.currentTerm,
-		Command: buf.Bytes(),
+		Command: encodeAddrs(addrs),
 		Type:    ConfigurationType,
 	}, nil
 }

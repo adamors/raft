@@ -117,7 +117,6 @@ func (t *GrpcTransport) Call(server int, method string, args, reply any) bool {
 			LeaderId:          int32(a.LeaderId),
 			LastIncludedIndex: int32(a.LastIncludedIndex),
 			LastIncludedTerm:  int32(a.LastIncludedTerm),
-			Offset:            int32(a.Offset),
 			Data:              a.Data,
 			Done:              a.Done,
 		}

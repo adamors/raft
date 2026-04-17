@@ -11,7 +11,6 @@ type InstallSnapshotArgs struct {
 	LeaderId          int
 	LastIncludedIndex int
 	LastIncludedTerm  int
-	Offset            int
 	Data              []byte
 	Done              bool
 }
@@ -90,9 +89,7 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 
 	rf.persist()
 
-	if rf.fsm != nil {
-		rf.fsm.Restore(bytes.NewReader(rf.snapshot))
-	}
+	rf.fsm.Restore(bytes.NewReader(rf.snapshot))
 
 	rf.mu.Unlock()
 }

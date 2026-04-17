@@ -58,7 +58,6 @@ func (s *GrpcServer) InstallSnapshot(ctx context.Context, req *pb.InstallSnapsho
 		LeaderId:          int(req.LeaderId),
 		LastIncludedIndex: int(req.LastIncludedIndex),
 		LastIncludedTerm:  int(req.LastIncludedTerm),
-		Offset:            int(req.Offset),
 		Data:              req.Data,
 		Done:              req.Done,
 	}

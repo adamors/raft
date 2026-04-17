@@ -182,7 +182,7 @@ func (rf *Raft) GetConfiguration() *ConfigurationFuture {
 	servers := make([]Server, rf.transport.NumPeers())
 	for i := range rf.transport.NumPeers() {
 		addr := rf.transport.Address(i)
-		servers[i] = Server{ID: addr, Address: addr}
+		servers[i] = Server{Address: addr}
 	}
 
 	return &ConfigurationFuture{configuration: Configuration{Servers: servers}}

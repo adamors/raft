@@ -65,6 +65,12 @@ func (rf *Raft) startElection() {
 	rf.persist()
 	rf.lastHeartbeat = time.Now()
 	term := rf.currentTerm
+	args := &RequestVoteArgs{
+		Term:         rf.currentTerm,
+		CandidateId:  rf.me,
+		LastLogIndex: rf.lastLogIndex(),
+		LastLogTerm:  rf.log[len(rf.log)-1].Term,
+	}
 
 	rf.mu.Unlock()
 
@@ -76,15 +82,6 @@ func (rf *Raft) startElection() {
 
 		// concurrently send out votes for every peer
 		go func(server int) {
-			rf.mu.Lock()
-			args := &RequestVoteArgs{
-				Term:         rf.currentTerm,
-				CandidateId:  rf.me,
-				LastLogIndex: rf.lastLogIndex(),
-				LastLogTerm:  rf.log[len(rf.log)-1].Term,
-			}
-			rf.mu.Unlock()
-
 			reply := &RequestVoteReply{}
 			if ok := rf.sendRequestVote(server, args, reply); !ok {
 				return
