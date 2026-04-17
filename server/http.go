@@ -47,5 +47,15 @@ func (s *GrpcServer) ServeStatus(addr string) {
 		fmt.Fprint(w, "ok")
 	})
 
+	mux.HandleFunc("/remove-server/", func(w http.ResponseWriter, r *http.Request) {
+		addr := strings.TrimPrefix(r.URL.Path, "/remove-server/")
+		future := s.Raft().RemoveServer(addr, 2*time.Second)
+		if err := future.Error(); err != nil {
+			http.Error(w, "error adding server", http.StatusServiceUnavailable)
+			return
+		}
+		fmt.Fprint(w, "ok")
+	})
+
 	http.ListenAndServe(addr, mux)
 }

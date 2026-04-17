@@ -49,17 +49,42 @@ func newCluster(count int) *cluster {
 	}
 }
 
+func setupAddress(d int) address {
+	ip := fmt.Sprintf("10.0.0.%d", d)
+	return address{
+		ip:       ip,
+		grpcAddr: ip + ":" + GRPC_PORT,
+		httpAddr: ip + ":" + HTTP_PORT,
+	}
+
+}
+
 func setupAddresses(count int) []address {
 	addressses := make([]address, count)
 	for i := range count {
-		ip := fmt.Sprintf("10.0.0.%d", i+1)
-		addressses[i] = address{
-			ip:       ip,
-			grpcAddr: ip + ":" + GRPC_PORT,
-			httpAddr: ip + ":" + HTTP_PORT,
-		}
+		addressses[i] = setupAddress(i + 1)
 	}
 	return addressses
+}
+
+func setupMachine(addr address, ips []string) gosim.Machine {
+	p := persister.NewInMemoryPersister()
+	return gosim.NewMachine(gosim.MachineConfig{
+		Addr: netip.MustParseAddr(addr.ip),
+		MainFunc: func() {
+			transport, _ := raft.NewGrpcTransport(ips)
+			persister := p
+			cfg := raft.DefaultConfig()
+			cfg.MaxRaftState = 1000
+			server := server.NewGRPCServer(addr.grpcAddr, transport, persister, cfg)
+			go server.ServeStatus(addr.httpAddr)
+			l, err := net.Listen("tcp", addr.grpcAddr)
+			if err != nil {
+				fmt.Printf("Error setting listener, %v", err)
+			}
+			server.Serve(l)
+		},
+	})
 }
 
 func setupMachines(addrs []address) []gosim.Machine {
@@ -70,23 +95,7 @@ func setupMachines(addrs []address) []gosim.Machine {
 	}
 
 	for i, addr := range addrs {
-		p := persister.NewInMemoryPersister()
-		machines[i] = gosim.NewMachine(gosim.MachineConfig{
-			Addr: netip.MustParseAddr(addr.ip),
-			MainFunc: func() {
-				transport, _ := raft.NewGrpcTransport(ips)
-				persister := p
-				cfg := raft.DefaultConfig()
-				cfg.MaxRaftState = 1000
-				server := server.NewGRPCServer(addr.grpcAddr, transport, persister, cfg)
-				go server.ServeStatus(addr.httpAddr)
-				l, err := net.Listen("tcp", addr.grpcAddr)
-				if err != nil {
-					fmt.Printf("Error setting listener, %v", err)
-				}
-				server.Serve(l)
-			},
-		})
+		machines[i] = setupMachine(addr, ips)
 	}
 	return machines
 }
