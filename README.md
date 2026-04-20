@@ -17,9 +17,99 @@ What is significantly different from the MIT 6.5840 lab design:
 
 #### Usage
 
-TBD
+```go
+import (
+    "github.com/adamors/raft/persister"
+    "github.com/adamors/raft/raft"
+    "github.com/adamors/raft/server"
+)
+```
+
+**1. Implement the FSM interface**
+
+```go
+type FSM interface {
+    Apply(*Log) any
+    Snapshot() (FSMSnapshot, error)
+    Restore(io.Reader) error
+}
+
+type FSMSnapshot interface {
+    Persist(io.Writer) error
+    Release()
+}
+```
+
+**2. Set up a node**
+
+```go
+// Create a disk persister for state and snapshots
+p, err := persister.NewDiskPersister("/data/raft/state", "/data/raft/snapshot")
+
+// Create a gRPC transport — pass the node's own address
+transport, err := raft.NewGrpcTransport([]string{"127.0.0.1:8400"})
+
+cfg := raft.DefaultConfig()
+r := raft.NewRaft(transport, "127.0.0.1:8400", p, fsm, cfg)
+```
+
+**3. Register the Raft gRPC service on your server**
+
+```go
+grpcSrv := grpc.NewServer()
+server.NewRaftServiceHandler(r).Register(grpcSrv)
+grpcSrv.Serve(ln)
+```
+
+**4. Cluster membership**
+
+Nodes start as a single-node cluster. Add peers dynamically as they are discovered:
+
+```go
+// Add a peer (e.g. on Serf join event)
+r.AddServer(addr, 10*time.Second).Error()
+
+// Remove a peer (e.g. on Serf leave event)
+r.RemoveServer(addr, 10*time.Second).Error()
+```
+
+**5. Apply commands**
+
+Only the leader can apply commands. `Apply` returns a future — call `Error()` to block until committed:
+
+```go
+future := r.Apply(data, 10*time.Second)
+if err := future.Error(); err != nil {
+    return err
+}
+result := future.Response()
+```
 
 
 #### Local setup
 
-TBD
+**Dependencies**
+
+To regenerate the gRPC stubs after modifying `grpc/raft.proto`, install `protoc` and the Go plugins:
+
+```bash
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+```
+Then run:
+```bash
+make compile
+```
+
+**Tests**
+
+Regular tests (server integration tests, etc.):
+```bash
+make test
+```
+
+Gosim simulation tests
+
+```bash
+make test-gosim
+```
