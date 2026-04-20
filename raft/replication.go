@@ -219,14 +219,15 @@ func (rf *Raft) applyConfig(entry LogEntry) error {
 		return ErrInternalError
 	}
 
-	rf.transport.ReplacePeers(addrs)
-
 	rf.mu.Lock()
+	rf.transport.ReplacePeers(addrs)
 	rf.configChangePending = false
+	now := time.Now()
 	for _, peer := range addrs {
 		if _, ok := rf.nextIndex[peer]; !ok {
 			rf.nextIndex[peer] = rf.lastLogIndex() + 1
 			rf.matchIndex[peer] = 0
+			rf.lastAckTime[peer] = now
 		}
 	}
 	rf.mu.Unlock()
