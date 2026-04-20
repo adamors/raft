@@ -1,6 +1,6 @@
 //go:build !sim
 
-package server_test
+package server
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adamors/raft"
 	"github.com/adamors/raft/persister"
+	"github.com/adamors/raft/raft"
 	"github.com/adamors/raft/server"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func TestServer(t *testing.T) {
 
 	for i := range 3 {
 		persister := persister.NewInMemoryPersister()
-		servers[i] = server.NewGRPCServer(i, transport, persister, raft.DefaultConfig())
+		servers[i] = server.NewGRPCServer(addresses[i], transport, persister, raft.DefaultConfig())
 		go func() {
 			servers[i].Serve(listeners[i])
 		}()
