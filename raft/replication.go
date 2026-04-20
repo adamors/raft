@@ -171,6 +171,8 @@ func (rf *Raft) sendEntriesForFollower(peer string, args *AppendEntriesArgs) {
 
 func (rf *Raft) heartbeat() {
 	// caller holds lock
+	rf.updateCommitIndex()
+
 	term := rf.currentTerm
 	commitIndex := rf.commitIndex
 

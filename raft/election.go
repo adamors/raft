@@ -97,17 +97,30 @@ func (rf *Raft) startElection() {
 			if reply.VoteGranted && rf.currentTerm == term {
 				votes++
 				if votes > rf.transport.NumPeers()/2 && !rf.isLeader {
-					rf.isLeader = true
-					now := time.Now()
-					for _, p := range rf.transport.Peers() {
-						rf.lastAckTime[p] = now
-						rf.nextIndex[p] = rf.lastLogIndex() + 1
-						rf.matchIndex[p] = 0
-					}
+					rf.becomeLeader()
 					rf.heartbeat()
 				}
 			}
 		}(peer)
+	}
+
+	// Single node cases: goroutines will only fire when there are peers,
+	// so check quorum immediately after launching them.
+	rf.mu.Lock()
+	if votes > rf.transport.NumPeers()/2 && !rf.isLeader && rf.currentTerm == term {
+		rf.becomeLeader()
+		rf.heartbeat()
+	}
+	rf.mu.Unlock()
+}
+
+func (rf *Raft) becomeLeader() {
+	rf.isLeader = true
+	now := time.Now()
+	for _, p := range rf.transport.Peers() {
+		rf.lastAckTime[p] = now
+		rf.nextIndex[p] = rf.lastLogIndex() + 1
+		rf.matchIndex[p] = 0
 	}
 }
 

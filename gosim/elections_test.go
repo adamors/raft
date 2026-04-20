@@ -8,6 +8,21 @@ import (
 	"github.com/jellevandenhooff/gosim/gosimruntime"
 )
 
+func TestSingleNode(t *testing.T) {
+	c := newCluster(1)
+	time.Sleep(time.Second)
+
+	leaderAddr, err := waitForLeaderAddr(c)
+	if err != nil {
+		t.Fatalf("Expected leader, got %v", err)
+	}
+
+	cmd := []byte("hello")
+	if _, err := submitAndVerifyCommand(c, leaderAddr, cmd, strictCommit); err != nil {
+		t.Fatalf("single node commit failed: %v", err)
+	}
+}
+
 // TestInitialElection:  Start 3 machines, each running a `GrpcServer` bound to
 // a gosim-simulated TCP listener. Call `WaitForLeader`.
 // Assert exactly one server returns `isLeader=true` and all three agree on who the leader is.
