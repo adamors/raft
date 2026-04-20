@@ -67,5 +67,3 @@ require (
 	mvdan.cc/gofumpt v0.7.0 // indirect
 	mvdan.cc/sh/v3 v3.10.0 // indirect
 )
-
-replace github.com/jellevandenhooff/gosim => ../gosim
