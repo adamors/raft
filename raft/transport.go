@@ -21,11 +21,17 @@ type Transport interface {
 // per-connection backoff state that could block reconnection after a
 // network partition is lifted.
 type GrpcTransport struct {
-	addrs []string
+	addrs    []string
+	dialOpts []grpc.DialOption
 }
 
-func NewGrpcTransport(addrs []string) (*GrpcTransport, error) {
-	return &GrpcTransport{addrs: addrs}, nil
+// NewGrpcTransport creates a new gRPC transport, grpc.DialOption(s) can be used
+// to configure TLS credentials. Insecure credentials will be used as a fallback.
+func NewGrpcTransport(addrs []string, opts ...grpc.DialOption) (*GrpcTransport, error) {
+	if len(opts) == 0 {
+		opts = []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	}
+	return &GrpcTransport{addrs: addrs, dialOpts: opts}, nil
 }
 
 func (t *GrpcTransport) NumPeers() int {
@@ -44,7 +50,8 @@ func (t *GrpcTransport) Dial(addr string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	opts := append(t.dialOpts, grpc.WithBlock())
+	conn, err := grpc.DialContext(ctx, addr, opts...)
 	if err != nil {
 		return false
 	}
@@ -58,9 +65,8 @@ func (t *GrpcTransport) Call(id string, method string, args, reply any) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, id, //nolint:staticcheck
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock())
+	opts := append(t.dialOpts, grpc.WithBlock())
+	conn, err := grpc.DialContext(ctx, id, opts...) //nolint:staticcheck
 	if err != nil {
 		return false
 	}
