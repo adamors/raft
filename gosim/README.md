@@ -13,8 +13,7 @@ don't exist.
 
 #### Usage
 
-I've been using a patched version of gosim to make it work locally, and `go.mod` is set up to expect gosim in a sibling
-directory to this repo. The patched version is https://github.com/adamors/gosim
+At the time of writing, the latest Go version that Gosim supports is 1.23 and it only works on Linux.
 
 To run the tests from this directory, run
 ```bash

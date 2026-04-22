@@ -108,7 +108,7 @@ Regular tests (server integration tests, etc.):
 make test
 ```
 
-Gosim simulation tests
+Gosim simulation tests (Note: gosim only works on Linux and needs Go <=1.23)
 
 ```bash
 make test-gosim
